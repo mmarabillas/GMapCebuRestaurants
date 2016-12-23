@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- jQuery -->
+    <script src="jquery-3.1.1.min.js"></script>
+
+</head>
+<body>
+
+<h1>My First Google Map</h1>
+
+<div id="directioninfo"></div>
+<div id="map" style="width:500px;height:500px"></div>
+<div id="data"></div>
+<table id="table-data" style="width:100%">
+      <thead>
+                <tr>
+                    <th>Location Name</th>
+                    <th>Address</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                </tr>
+            </thead>
+	<tbody id="table-body">
+	</tbody>
+</table>
+<div id="googleMap" style="width:100%;height:500px"></div>
+<div id="directionsPanel"></div>
+
+<script>
+
+var globalmap;
+
+var globalhome;
+var globaljsondata;
+
+
+function myMap() {
+
+  var mapCanvas = document.getElementById("map");
+  var mapOptions = {
+    center: new google.maps.LatLng(10.3144906,123.8884889), 
+    zoom: 15
+  }
+  var map = new google.maps.Map(mapCanvas, mapOptions);
+  globalmap = map;
+
+  globalhome = new google.maps.LatLng(10.3144906,123.8884889);
+  
+   var markers = new google.maps.Marker({
+      position: globalhome,
+      map: map,
+      animation: google.maps.Animation.DROP,
+      icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+      title: 'Source'
+  });
+ 
+	var types = [ 'restaurant'];
+	//var types = [ 'restaurant','bar','cafe','casino','department_store','food','grocery_or_supermarket','home_goods_store','liquor_stor','meal_delivery','meal_takeaway','night_club','shopping_mall','store'];
+ 
+  var service = new google.maps.places.PlacesService(map);
+            service.nearbySearch({
+                location : globalhome,
+                radius : 5500,
+                type : types
+            }, callback);
+}
+
+function download(filename, text) {
+    var pom = document.createElement('a');
+    pom.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    pom.setAttribute('download', filename);
+
+    if (document.createEvent) {
+        var event = document.createEvent('MouseEvents');
+        event.initEvent('click', true, true);
+        pom.dispatchEvent(event);
+    }
+    else {
+        pom.click();
+    }
+}
+
+function callback(results, status) {
+
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+				var jsonobj = {response:""};
+				var jsonvar = new Array();
+                for (var i = 0; i < results.length; i++) {
+                    createMarker(results[i]);
+					var newplace = {name:results[i].name,latitude:results[i].geometry.location.lat(),longitude:results[i].geometry.location.lng(),address:results[i].vicinity,ratings:results[i].rating};
+					jsonvar.push(newplace);
+					//alert(results[i].name+results[i].geometry.location.lat()+results[i].geometry.location.lng());
+                }
+				alert('Output: '+results.length);
+				jsonobj.response = jsonvar;
+				globaljsondata = jsonobj;
+				localStorage.setItem('myStorage', JSON.stringify(globaljsondata));
+				//localStorage.getItem('myStorage');
+				
+				download('json.txt',JSON.stringify(globaljsondata));
+            }		
+}
+
+
+
+function addJsonData(place){
+	globaljsondata = {};
+	
+	var data = 0;
+}
+
+function createMarker(place) {
+            var placeLoc = place.geometry.location;
+            var marker = new google.maps.Marker({
+                map : globalmap,
+                position : place.geometry.location
+            });
+
+			var infowindow = new google.maps.InfoWindow({
+				content: 'Latitude: ' + location.lat +
+				'<br>Longitude: ' + location.lng
+			});
+			
+			
+			
+            google.maps.event.addListener(marker, 'click', function() {
+                //infowindow.setContent(place.name);
+                //infowindow.open(map, this);
+				
+				displayDirections(place.geometry.location,globalhome,globalmap);
+				
+				var txt = '<b>Vicinity Address:</b>' + place.vicinity+'<br/>';
+				txt += '<b>Ratings:</b>' + place.rating + '<br/>';
+				//txt += '<b>Reviews:</b>' + place.reviews[1].author_name + place.reviews[1].text + place.reviews[1].rating;
+				
+				if (place.photos){
+					for (i=0;i<place.photos.length;i++){
+						var photo = place.photos[i];
+						var link = photo.getUrl({'maxWidth': 200, 'maxHeight': 200});
+						//txt+= 'Photo link' + i + ':' + photo.getUrl({'maxWidth': 200, 'maxHeight': 200}); //+ '' + photo.height + photo.width + '<br/>';
+						txt+= 'Photo:'+ '<img src="' + link + '" alt="some_photo">'+'<br/>';
+					}
+				}
+				
+				if (place.reviews){
+					for (i=0;i<place.reviews.length;i++)
+						txt+= 'Review' + i + ':' + place.reviews[1].rating + place.reviews[1].author_name + place.reviews[1].text + '<br/>';
+				}
+				
+				if (place.types){
+					txt+='Types:';
+					for (i=0;i<place.types.length;i++)
+						txt+= place.types[i] + ' ';
+					txt+='<br/>';
+				}
+				
+				if (place.url) txt+= 'Url:'+place.url+'<br/>';
+				
+				if (place.website){
+					txt+='Websites:';
+					for (i=0;i<place.website.length;i++)
+						txt+= place.website[i] + ' ';
+					txt+='<br/>';
+				}
+				
+				$('#directioninfo').html(txt);
+				
+				
+				
+            });
+			//alert(place.name);
+        }
+
+function buildHtmlTable(myList,selector) {
+    var columns = addAllColumnHeaders(myList, selector);
+
+    for (var i = 0 ; i < myList.length ; i++) {
+        var row$ = $('<tr/>');
+        for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
+            var cellValue = myList[i][columns[colIndex]];
+
+            if (cellValue == null) { cellValue = ""; }
+
+            row$.append($('<td/>').html(cellValue));
+        }
+        $(selector).append(row$);
+    }
+	
+	document.getElementById("data").textContent = headerTr$;
+}
+
+function addAllColumnHeaders(myList, selector)
+{
+    var columnSet = [];
+    var headerTr$ = $('<tr/>');
+
+    for (var i = 0 ; i < myList.length ; i++) {
+        var rowHash = myList[i];
+        for (var key in rowHash) {
+            if ($.inArray(key, columnSet) == -1){
+                columnSet.push(key);
+                headerTr$.append($('<th/>').html(key));
+            }
+        }
+    }
+    //$(selector).append(headerTr$);
+	
+	document.getElementById("data").textContent
+
+ }
+
+function parseMapData(data)
+{
+	
+}
+/*
+var xhr = new XMLHttpRequest();
+xhr.onreadystatechange = process;
+xhr.open("GET", "http://localhost/googlemaps/foursquare_dat.txt", true);
+xhr.send();
+
+function htmlEscape(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function process()
+{
+  if (xhr.readyState == 4) {
+    var resp = JSON.parse(xhr.responseText);
+
+    // resp now has the text and you can process it.
+	//alert(resp);
+	//buildHtmlTable(resp,"#data");
+	$('#data').innerHTML = htmlEscape(xhr.responseText);//str(resp);
+	//alert(xhr.responseText);
+	$('.data').innerHTML = 'loading data....';
+	$('#data').text = 'loading data....';
+	$('#data').html = 'loading data....';
+	//alert('ready');
+	
+	//document.getElementById("data").textContent = xhr.responseText;//htmlEscape(xhr.responseText);//"This is some text";
+	//buildHtmlTable(resp,"data");
+	
+	 //var jsonHtmlTable = ConvertJsonToTable(resp, 'table-data', null, null);
+  }
+}
+*/
+
+var global_prevdirectiondisplay;
+
+function placeMarker(map, location) {
+  var marker = new google.maps.Marker({
+    position: location,
+    map: map
+  });
+  var infowindow = new google.maps.InfoWindow({
+    content: 'Latitude: ' + location.lat +
+    '<br>Longitude: ' + location.lng
+  });
+  //infowindow.open(map,marker);
+     google.maps.event.addListener(marker, 'click', function() {
+		displayDirections(location,globalhome,map);
+		//if (global_prevmarker) global_prevmarker.setMap(null);
+		//global_prevmarker = marker;	
+		//infowindow.setContent(place.name);
+        //infowindow.open(map, this);
+	 });
+}
+
+function displayDirections(current,home,map){
+    var directions = {
+        origin: current,
+        destination: home,
+        travelMode: google.maps.DirectionsTravelMode.DRIVING
+    };
+    
+    display = new google.maps.DirectionsRenderer({ map: map, suppressMarkers: true });
+    //////////////////////this is for navigation.
+	
+	$("#directionsPanel").html('');
+    display.setPanel(document.getElementById("directionsPanel"));
+
+    service = new google.maps.DirectionsService();
+    service.route(directions, function(response, status) {
+        if (status == google.maps.DirectionsStatus.OK) {
+            display.setDirections(response);
+  
+        }
+        else
+            alert ('failed to get directions');
+    });
+	
+	if (global_prevdirectiondisplay) global_prevdirectiondisplay.setMap(null);
+	global_prevdirectiondisplay = display;
+}
+
+ function displayCurrentPosition(data) {
+ /*
+    //var current = new google.maps.LatLng(data.coords.latitude, data.coords.longitude);
+	var current = new google.maps.LatLng(10.3183671,123.88125);
+	var home = new google.maps.LatLng(10.3183671,123.88125+0.02);
+	
+    var options = {
+        center: current,
+       // mapTypeId: google.maps.MapTypeId.HYBRID,
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        zoom: 10,
+    };
+    var map = new google.maps.Map(document.getElementById("googleMap"), options);
+    stepDisplay = new google.maps.InfoWindow();
+    var markerd = new google.maps.Marker({
+    	position: home,
+    	map: map,
+        animation: google.maps.Animation.DROP,
+		title: 'Destination'
+    });
+    var markers = new google.maps.Marker({
+      position: current,
+      map: map,
+      animation: google.maps.Animation.DROP,
+      icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+      title: 'Source'
+    });
+
+    google.maps.event.addListener(markerd, 'click', function() {
+
+    	    geocoder.geocode({'latLng': home}, function(results, status) {
+    	    	    if (status == google.maps.GeocoderStatus.OK) {
+    	    	      	 if (results[1]) {
+					            stepDisplay.setContent("<strong>" + name + "</strong><p></p>" + results[1].formatted_address);
+ 							    //stepDisplay.setContent("<strong>Destination</strong><p>This is the destination</p>");
+ 						}
+    // Open an info window when the marker is clicked on,
+    // containing the text of the step.
+//    stepDisplay.setContent("<strong>Destination</strong><p>This is the destination</p>");
+    					stepDisplay.open(map, markerd);
+    				}
+    		});
+    });
+
+    google.maps.event.addListener(markers, 'click', function() {
+    	    	    geocoder.geocode({'latLng': current}, function(results, status) {
+    	    	    	 if (status == google.maps.GeocoderStatus.OK) {
+    	    	      	 if (results[1]) {
+    	    	      	 		stepDisplay.setContent("<strong> Current Location : </strong><p></p>" + results[1].formatted_address);
+//					            stepDisplay.setContent(results[1].formatted_address);
+ 							    //stepDisplay.setContent("<strong>Destination</strong><p>This is the destination</p>");
+ 						}
+    // Open an info window when the marker is clicked on,
+    // containing the text of the step.
+ //   stepDisplay.setContent("<strong>Current Location</strong><p>You are here Now</p>");
+				   		 stepDisplay.open(map, markers);
+				   		}
+				   	});
+    });
+	
+	//displayDirections(current,home,map);
+	*/
+}
+
+
+$(document).ready(function() {
+	
+	var acumtabledata = '';
+	var mapfile = '';
+	//mapfile = "foursquare_dat.txt";
+	mapfile = "cebumap.txt";
+	
+	$.getJSON(mapfile, function(data){
+    $.each(data.response.venues, function(index, elm){
+        console.log(elm.name);
+		//alert(elm.name);
+		var tabledata = '<td>'+ elm.name +'</td>' + 
+						'<td>'+ elm.location.address +'</td>' +
+						'<td>'+ elm.location.lat +'</td>' +
+						'<td>'+ elm.location.lng +'</td>' 
+		var tablerow = '<tr>' + tabledata + '</tr>' 
+		acumtabledata += tablerow;
+		//alert(acumtabledata);
+		//placeMarker(globalmap,elm.location);
+		
+		if (data.response.venues.length-1 == index)
+			$('#table-body').html(acumtabledata);
+    });
+	
+	displayCurrentPosition(0);
+});
+/*
+    $('#table-data').DataTable( {
+        "ajax": 'foursquare_dat.txt'
+    } );
+	/*
+	$('#table-data').DataTable( {
+        "ajax": 'http://localhost/googlemaps/foursquare_dat.txt'
+    } );
+	
+	alert('run document ready');
+} );
+	
+	$('#table-data').DataTable( {
+        "ajax": 'http://localhost/googlemaps/foursquare_dat.txt'
+    } );
+	
+	alert('run script');
+$('#table-data').innerHTML = 'hey work it';
+
+*/
+});
+</script>
+
+<script src="https://maps.googleapis.com/maps/api/js?callback=myMap&libraries=places&key=AIzaSyDs-52PICwwhD4yt9h09Iwc4l6j9mO0-SQ"></script>
+
+</body>
+</html>
