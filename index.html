@@ -474,6 +474,10 @@ $.getJSON(urlSpreadsheet, function(data) {
 		var rowid = $(this).attr("id");
 		var values = rowid.split("_");
 
+		if(infowindow != null){
+			infowindow.close();
+		}
+		
 		if (values.length>1){ 
 		
 		var id = values[1];
