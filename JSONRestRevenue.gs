@@ -15,7 +15,7 @@ function myFunction() {
   var rows = [];
   var data;
   
-  SpreadsheetApp.getUi().alert(dataSet.length);
+  //SpreadsheetApp.getUi().alert(dataSet.length);
 
   rows.push(["name","rating","address","patrons","revenue","latitude","longitude"]);
   

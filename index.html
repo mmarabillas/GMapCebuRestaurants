@@ -431,13 +431,6 @@ $.getJSON(urlSpreadsheet, function(data) {
   
   // loop to build html output for each row
   var entry = data.feed.entry;
-  /**
-  ** Change to descending order
-  ** for (var i = entry.length - 1; i >= 0; i -= 1) {
-   */
-   alert(entry);
-   
-
   
   for (var i = 0; i < entry.length; i++) {
   
@@ -449,35 +442,11 @@ $.getJSON(urlSpreadsheet, function(data) {
 	var latitude = entry[i]['gsx$latitude']['$t'];
 	var longitude = entry[i]['gsx$longitude']['$t'];
 	
-	/*
-	gsheetdata[i].name = name;
-	gsheetdata[i].rating = rating;
-	gsheetdata[i].address = address;
-	gsheetdata[i].latitude = latitude;
-	gsheetdata[i].longitude = longitude;
-	*/
-	
 	var sheetdata = {'name':name,'rating':rating,'address':address,'patrons':patrons,'revenue':revenue,'latitude':latitude,'longitude':longitude};
 	gsheetdata[i] = sheetdata;
   
     html += '<tr class="clickrestaurant" id="tableid_' + i + '">';
     html += '<td>' + name + '</td>';
-	
-	/*
-	if (rating)
-		html += '<td>' + rating + '</td>';
-	else
-		html += '<td>' + 'NA' + '</td>';
-	*/
-	
-	/*
-	if ( typeof rating === "undefined" )
-		html += '<td>' + 'NA' + '</td>';
-	else
-		html += '<td>' + rating + '</td>';
-	
-	//html += '<td>' + 'NA' + '</td>';
-	*/
 	
 	if (rating!="undefined")
 		html += '<td>' + rating + '</td>';
@@ -522,15 +491,7 @@ $.getJSON(urlSpreadsheet, function(data) {
 		}
 	});
 	
-	//transform to paginated table
-	//$('#restaurantlist').paging({limit:5});
-	/*
-	$("#restaurantlist").simplePagination({
-		perPage: 5,
-		previousButtonText: 'Previous',
-		nextButtonText: 'Next'
-	});*/
-	
+	//Make paginated
 	$("#restaurant-table").dataTable({
             //"scrollY": "350px",
             //"scrollCollapse": true,
