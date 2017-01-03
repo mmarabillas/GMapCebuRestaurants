@@ -3,37 +3,104 @@
 <head>
     <!-- jQuery -->
     <script src="jquery-3.1.1.min.js"></script>
+	<script src="jquery-ui.min.js"></script>
+	<!--<script src="paging.js"></script>
+	<script src="jquery.simplePagination.js"></script>-->
+	<link rel="stylesheet" type="text/css" href="jquery-ui.min.css">
+	
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/dt-1.10.13/datatables.min.css"/>
+	<script type="text/javascript" src="https://cdn.datatables.net/v/dt/dt-1.10.13/datatables.min.js"></script>
 
+<style>
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+tr:hover{background-color:#f5f5f5}
+</style>
+<style>
+.paging-nav {
+  text-align: right;
+  padding-top: 2px;
+}
+
+.paging-nav a {
+  margin: auto 1px;
+  text-decoration: none;
+  display: inline-block;
+  padding: 1px 7px;
+  background: #91b9e6;
+  color: white;
+  border-radius: 3px;
+}
+
+.paging-nav .selected-page {
+  background: #187ed5;
+  font-weight: bold;
+}
+</style>
 </head>
 <body>
 
-<h1>My First Google Map</h1>
+<h1>Google Map Cebu Restaurants</h1>
 
+<div id="mainPanel" style="float:left">
 <div id="directioninfo"></div>
-<div id="map" style="width:500px;height:500px"></div>
+<div id="dialog" title="Basic dialog"></div>
+<h2 style="text-align:left">Restaurant List</h2>
+<div id="restaurantlist" style="padding:20px;"></div>
+<h2 style="text-align:left">Restaurant Directions</h2>
+<div id="directionsPanel" style="font-size:14px;width:400px;padding:20px"></div>
+</div>
+
+<div id="map-container">
+<h2 style="text-align:left">Google Map</h2>
+<div id="map" style="width:500px;height:500px;float:left"></div>
+</div>
 <div id="data"></div>
+<div id="table-div">
+<h2 style="text-align:left">FourSquare Restaurant List</h2>
 <table id="table-data" style="width:100%">
-      <thead>
-                <tr>
-                    <th>Location Name</th>
-                    <th>Address</th>
-                    <th>Latitude</th>
-                    <th>Longitude</th>
-                </tr>
-            </thead>
+    <thead>
+        <tr>
+        <th>Location Name</th>
+        <th>Address</th>
+        <th>Latitude</th>
+        <th>Longitude</th>
+        </tr>
+    </thead>
 	<tbody id="table-body">
 	</tbody>
 </table>
-<div id="googleMap" style="width:100%;height:500px"></div>
-<div id="directionsPanel"></div>
+</div>
 
 <script>
 
+//google maps 
 var globalmap;
-
 var globalhome;
+var global_prevdirectiondisplay;
+
+//json data
 var globaljsondata;
 
+//model windows
+var globaldialog;
+var infowindow;
+
+//config
+var willUseGooglePlacesData = false;
+var willDownloadJSONData = false;
+var willDisplayRestaurantImagesAndInfo = false;
+
+var willUsePlaceMarkerForJSONData = false;
+var willUseFourSquareData = false;
 
 function myMap() {
 
@@ -56,16 +123,39 @@ function myMap() {
   });
  
 	var types = [ 'restaurant'];
+	
+	//other restaurant types
 	//var types = [ 'restaurant','bar','cafe','casino','department_store','food','grocery_or_supermarket','home_goods_store','liquor_stor','meal_delivery','meal_takeaway','night_club','shopping_mall','store'];
  
-  var service = new google.maps.places.PlacesService(map);
-            service.nearbySearch({
-                location : globalhome,
-                radius : 5500,
-                type : types
-            }, callback);
+
+	if (willUseGooglePlacesData==true){
+	var service = new google.maps.places.PlacesService(map);
+   
+	service.nearbySearch({
+		location : globalhome,
+		radius : 5500,
+		type : types
+	}, callback);
+	}	
+	
+	/*// radar search
+	var request = {
+        bounds: map.getBounds(),
+        type: types
+    };
+	
+	alert(map.getBounds());
+	
+    service.radarSearch(request, callback);		
+	*/
+	getGoogleSheetData();
 }
 
+function setHomePosition(position){
+	globalhome = position;
+}
+
+//download json data
 function download(filename, text) {
     var pom = document.createElement('a');
     pom.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
@@ -82,13 +172,14 @@ function download(filename, text) {
 }
 
 function callback(results, status) {
-
             if (status === google.maps.places.PlacesServiceStatus.OK) {
 				var jsonobj = {response:""};
 				var jsonvar = new Array();
                 for (var i = 0; i < results.length; i++) {
-                    createMarker(results[i]);
-					var newplace = {name:results[i].name,latitude:results[i].geometry.location.lat(),longitude:results[i].geometry.location.lng(),address:results[i].vicinity,ratings:results[i].rating};
+                    //createMarker(results[i]);
+					var info_patrons = 20 + ((results[i].name.length)%5)*5;
+					var info_revenue = 200 + ((results[i].vicinity.length)%6)*80;
+					var newplace = {name:results[i].name,latitude:results[i].geometry.location.lat(),longitude:results[i].geometry.location.lng(),address:results[i].vicinity,rating:results[i].rating,patrons:info_patrons,revenue:info_revenue};
 					jsonvar.push(newplace);
 					//alert(results[i].name+results[i].geometry.location.lat()+results[i].geometry.location.lng());
                 }
@@ -96,10 +187,11 @@ function callback(results, status) {
 				jsonobj.response = jsonvar;
 				globaljsondata = jsonobj;
 				localStorage.setItem('myStorage', JSON.stringify(globaljsondata));
-				//localStorage.getItem('myStorage');
 				
-				download('json.txt',JSON.stringify(globaljsondata));
-            }		
+				if (willDownloadJSONData==true)
+					download('json.txt',JSON.stringify(globaljsondata));
+            }
+			
 }
 
 
@@ -108,6 +200,33 @@ function addJsonData(place){
 	globaljsondata = {};
 	
 	var data = 0;
+}
+
+function createMarkerFromGoogleSheetData(map,name,lat,lang){
+	var location = new google.maps.LatLng(lat,lang);
+    var marker = new google.maps.Marker({
+        map : globalmap,
+        position :location
+    });	
+	
+	infowindow = new google.maps.InfoWindow({
+		content: 'Latitude: ' + lat +
+		'<br>Longitude: ' + lang
+	});
+	
+	//alert('create marker for  '+ name + ' lat=' + lat + ' lang=' + lang);
+	
+	google.maps.event.addListener(marker, 'click', function() {
+		displayDirections(location,globalhome,globalmap);
+		
+		if(infowindow != null){
+			infowindow.close();
+		}
+		
+		infowindow.setContent(name);
+        infowindow.open(globalmap, this);
+		
+	});
 }
 
 function createMarker(place) {
@@ -122,15 +241,15 @@ function createMarker(place) {
 				'<br>Longitude: ' + location.lng
 			});
 			
-			
-			
             google.maps.event.addListener(marker, 'click', function() {
                 //infowindow.setContent(place.name);
                 //infowindow.open(map, this);
 				
 				displayDirections(place.geometry.location,globalhome,globalmap);
 				
-				var txt = '<b>Vicinity Address:</b>' + place.vicinity+'<br/>';
+				if (willDisplayRestaurantImagesAndInfo==true){
+				var txt = '<b>Name:</b>' + place.name+'<br/>';
+				txt +='<b>Vicinity Address:</b>' + place.vicinity+'<br/>';
 				txt += '<b>Ratings:</b>' + place.rating + '<br/>';
 				//txt += '<b>Reviews:</b>' + place.reviews[1].author_name + place.reviews[1].text + place.reviews[1].rating;
 				
@@ -165,94 +284,10 @@ function createMarker(place) {
 				}
 				
 				$('#directioninfo').html(txt);
-				
-				
+				}
 				
             });
-			//alert(place.name);
         }
-
-function buildHtmlTable(myList,selector) {
-    var columns = addAllColumnHeaders(myList, selector);
-
-    for (var i = 0 ; i < myList.length ; i++) {
-        var row$ = $('<tr/>');
-        for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
-            var cellValue = myList[i][columns[colIndex]];
-
-            if (cellValue == null) { cellValue = ""; }
-
-            row$.append($('<td/>').html(cellValue));
-        }
-        $(selector).append(row$);
-    }
-	
-	document.getElementById("data").textContent = headerTr$;
-}
-
-function addAllColumnHeaders(myList, selector)
-{
-    var columnSet = [];
-    var headerTr$ = $('<tr/>');
-
-    for (var i = 0 ; i < myList.length ; i++) {
-        var rowHash = myList[i];
-        for (var key in rowHash) {
-            if ($.inArray(key, columnSet) == -1){
-                columnSet.push(key);
-                headerTr$.append($('<th/>').html(key));
-            }
-        }
-    }
-    //$(selector).append(headerTr$);
-	
-	document.getElementById("data").textContent
-
- }
-
-function parseMapData(data)
-{
-	
-}
-/*
-var xhr = new XMLHttpRequest();
-xhr.onreadystatechange = process;
-xhr.open("GET", "http://localhost/googlemaps/foursquare_dat.txt", true);
-xhr.send();
-
-function htmlEscape(str) {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
-function process()
-{
-  if (xhr.readyState == 4) {
-    var resp = JSON.parse(xhr.responseText);
-
-    // resp now has the text and you can process it.
-	//alert(resp);
-	//buildHtmlTable(resp,"#data");
-	$('#data').innerHTML = htmlEscape(xhr.responseText);//str(resp);
-	//alert(xhr.responseText);
-	$('.data').innerHTML = 'loading data....';
-	$('#data').text = 'loading data....';
-	$('#data').html = 'loading data....';
-	//alert('ready');
-	
-	//document.getElementById("data").textContent = xhr.responseText;//htmlEscape(xhr.responseText);//"This is some text";
-	//buildHtmlTable(resp,"data");
-	
-	 //var jsonHtmlTable = ConvertJsonToTable(resp, 'table-data', null, null);
-  }
-}
-*/
-
-var global_prevdirectiondisplay;
 
 function placeMarker(map, location) {
   var marker = new google.maps.Marker({
@@ -275,8 +310,8 @@ function placeMarker(map, location) {
 
 function displayDirections(current,home,map){
     var directions = {
-        origin: current,
-        destination: home,
+        origin: home,
+        destination: current,
         travelMode: google.maps.DirectionsTravelMode.DRIVING
     };
     
@@ -364,33 +399,198 @@ function displayDirections(current,home,map){
 	*/
 }
 
+// ID of the Google Spreadsheet
+var spreadsheetID = "1iiXBiF27xlI8eiScbDxCVAD2a62VQEtqK0qFdVLmgcU";
+ 
+ // Make sure it is public or set to Anyone with link can view 
+var urlSpreadsheet = "https://spreadsheets.google.com/feeds/list/" + spreadsheetID + "/od6/public/values?alt=json";
+ 
+function getGoogleSheetData(){
+	// make JSON call to Google Data API
+$.getJSON(urlSpreadsheet, function(data) {
+
+  // set global html variable
+  var html = '';
+
+  var gsheetdata = new Array();
+  
+  var willDisplayCoords = false;
+  
+  html += '<table id="restaurant-table" style="font-size:12px;font-family:Arial, Helvetica, sans-serif" >';
+  html += '<thead>';
+  html += '<th>Name</th>';
+  html += '<th>Rating</th>';
+  html += '<th>Address</th>';
+  
+  if (willDisplayCoords){
+	html += '<th>Latitude</th>';
+	html += '<th>Longitude</th>';
+  }
+ // html += '<th>Extra Curricular Activity</th>';
+  html += '</thead>';
+  
+  // loop to build html output for each row
+  var entry = data.feed.entry;
+  /**
+  ** Change to descending order
+  ** for (var i = entry.length - 1; i >= 0; i -= 1) {
+   */
+   alert(entry);
+   
+
+  
+  for (var i = 0; i < entry.length; i++) {
+  
+	var name = entry[i]['gsx$name']['$t'];
+	var rating = entry[i]['gsx$rating']['$t'];
+	var address = entry[i]['gsx$address']['$t'];
+	var patrons = entry[i]['gsx$patrons']['$t'];
+	var revenue = entry[i]['gsx$revenue']['$t'];
+	var latitude = entry[i]['gsx$latitude']['$t'];
+	var longitude = entry[i]['gsx$longitude']['$t'];
+	
+	/*
+	gsheetdata[i].name = name;
+	gsheetdata[i].rating = rating;
+	gsheetdata[i].address = address;
+	gsheetdata[i].latitude = latitude;
+	gsheetdata[i].longitude = longitude;
+	*/
+	
+	var sheetdata = {'name':name,'rating':rating,'address':address,'patrons':patrons,'revenue':revenue,'latitude':latitude,'longitude':longitude};
+	gsheetdata[i] = sheetdata;
+  
+    html += '<tr class="clickrestaurant" id="tableid_' + i + '">';
+    html += '<td>' + name + '</td>';
+	
+	/*
+	if (rating)
+		html += '<td>' + rating + '</td>';
+	else
+		html += '<td>' + 'NA' + '</td>';
+	*/
+	
+	/*
+	if ( typeof rating === "undefined" )
+		html += '<td>' + 'NA' + '</td>';
+	else
+		html += '<td>' + rating + '</td>';
+	
+	//html += '<td>' + 'NA' + '</td>';
+	*/
+	
+	if (rating!="undefined")
+		html += '<td>' + rating + '</td>';
+	else
+		html += '<td>' + 'NA' + '</td>';
+		
+    html += '<td>' + address + '</td>';
+	
+	if (willDisplayCoords){
+		html += '<td>' + latitude + '</td>';
+		html += '<td>' + longitude + '</td>';
+	// html += '<td>' + entry[i]['gsx$extracurricularactivity']['$t'] + '</td>';
+	}
+    html += '</tr>';
+	
+	createMarkerFromGoogleSheetData(globalmap,name,latitude,longitude);
+  }
+  html += '</table>';
+
+  
+  
+  // output html
+  $('#restaurantlist').html(html);
+  $('.clickrestaurant').click(function() { 
+		var rowid = $(this).attr("id");
+		var values = rowid.split("_");
+
+		if (values.length>1){ 
+		
+		var id = values[1];
+		
+		var location = new google.maps.LatLng(gsheetdata[id].latitude,gsheetdata[id].longitude);
+		
+		$('#dialog').dialog("close");
+		$('#dialog').attr('title',gsheetdata[id].name);
+		$('#dialog' ).dialog({title:gsheetdata[id].name});
+		$('#dialog').html('');
+		$('#dialog').html('Patron:'+gsheetdata[id].patrons+'</br>Income:'+gsheetdata[id].revenue+'</br>Rating:'+gsheetdata[id].rating);
+		$('#dialog').dialog("open");
+		
+		displayDirections(location,globalhome,globalmap);
+		}
+	});
+	
+	//transform to paginated table
+	//$('#restaurantlist').paging({limit:5});
+	/*
+	$("#restaurantlist").simplePagination({
+		perPage: 5,
+		previousButtonText: 'Previous',
+		nextButtonText: 'Next'
+	});*/
+	
+	$("#restaurant-table").dataTable({
+            //"scrollY": "350px",
+            //"scrollCollapse": true,
+            //"bSort": false,
+            "paging": true,
+			"lengthMenu": [[5, 10, 20, -1], [5, 10, 20, "All"]]
+        });
+
+});
+}
 
 $(document).ready(function() {
 	
 	var acumtabledata = '';
+	
 	var mapfile = '';
 	//mapfile = "foursquare_dat.txt";
 	mapfile = "cebumap.txt";
 	
+	if (willUseFourSquareData==true){
+	
 	$.getJSON(mapfile, function(data){
+	
     $.each(data.response.venues, function(index, elm){
         console.log(elm.name);
-		//alert(elm.name);
+
 		var tabledata = '<td>'+ elm.name +'</td>' + 
 						'<td>'+ elm.location.address +'</td>' +
 						'<td>'+ elm.location.lat +'</td>' +
 						'<td>'+ elm.location.lng +'</td>' 
 		var tablerow = '<tr>' + tabledata + '</tr>' 
 		acumtabledata += tablerow;
-		//alert(acumtabledata);
-		//placeMarker(globalmap,elm.location);
+
+		if(willUsePlaceMarkerForJSONData==true)
+			placeMarker(globalmap,elm.location);
 		
-		if (data.response.venues.length-1 == index)
+		if (data.response.venues.length-1 == index){
 			$('#table-body').html(acumtabledata);
+		}
     });
+	});
+	
+	}else{
+		$('#table-div').html('');
+	}
 	
 	displayCurrentPosition(0);
-});
+	
+	globaldialog = $( "#dialog" ).dialog({
+			 autoOpen: false,
+             title: $('#dialog').attr('title')
+             /*buttons: {
+					"Exit": function() {
+						$(this).dialog("close");
+						}
+					}*/
+			});
+				 
+
+
 /*
     $('#table-data').DataTable( {
         "ajax": 'foursquare_dat.txt'
