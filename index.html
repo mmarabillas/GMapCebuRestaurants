@@ -52,6 +52,12 @@ tr:hover{background-color:#f5f5f5}
 
 <div id="mainPanel" style="float:left">
 <div id="directioninfo"></div>
+<div id="drawCircle-div" style="width:400px">
+<b>Draw Circle On Map</b><br>
+Radius:<input type="text" id="input_radius" value="1" style="width:80px"><br>
+Latitude:<input type="text" id="input_latitude" value="10.3144906" style="width:80px"><br>Longitude <input type="text" id="input_longitude" value="123.8884889"  style="width:80px"><br>
+<button type="submit" value="Submit" onclick="drawCircleOnGoogleMapWithStats();">Submit</button>
+</div>
 <div id="dialog" title="Basic dialog"></div>
 <h2 style="text-align:left">Restaurant List</h2>
 <div id="restaurantlist" style="padding:20px;"></div>
@@ -86,6 +92,9 @@ tr:hover{background-color:#f5f5f5}
 var globalmap;
 var globalhome;
 var global_prevdirectiondisplay;
+var global_allMarkers = [];
+var gsheetdata = new Array();
+var circle;
 
 //json data
 var globaljsondata;
@@ -149,6 +158,9 @@ function myMap() {
     service.radarSearch(request, callback);		
 	*/
 	getGoogleSheetData();
+	
+	//draw circle on google map
+	drawCircleOnGoogleMapWithStats();
 }
 
 function setHomePosition(position){
@@ -207,7 +219,9 @@ function createMarkerFromGoogleSheetData(map,name,lat,lang){
     var marker = new google.maps.Marker({
         map : globalmap,
         position :location
-    });	
+    });
+
+	global_allMarkers.push(marker);
 	
 	infowindow = new google.maps.InfoWindow({
 		content: 'Latitude: ' + lat +
@@ -335,6 +349,97 @@ function displayDirections(current,home,map){
 	global_prevdirectiondisplay = display;
 }
 
+function drawCircleOnGoogleMapWithStats() {
+  //var address = document.getElementById('address').value;
+  var radius = parseFloat(document.getElementById('input_radius').value)*1000;
+  var latitude = document.getElementById('input_latitude').value;
+  var longitude = document.getElementById('input_longitude').value;
+  //var location = new google.maps.LatLng(10.3144906,123.8884889);
+  var location = new google.maps.LatLng(latitude,longitude);
+  
+	var marker = new google.maps.Marker({
+        map: globalmap,
+        position: location
+      });
+	  
+      if (circle) circle.setMap(null);
+      circle = new google.maps.Circle({center:marker.getPosition(),
+                                     radius: radius,
+                                     fillOpacity: 0.35,
+                                     fillColor: "#FF0000",
+                                     map: globalmap});
+      var bounds = new google.maps.LatLngBounds();
+	  
+	  var total_patrons = 0;
+	  var total_revenue = 0;
+	  var total_rating = 0;
+	  var restaurant_count = 0;
+	  
+      for (var i=0; i<global_allMarkers.length;i++) {
+        if (google.maps.geometry.spherical.computeDistanceBetween(global_allMarkers[i].getPosition(),marker.getPosition()) < radius) {
+          bounds.extend(global_allMarkers[i].getPosition())
+		  global_allMarkers[i].setMap(null);
+          global_allMarkers[i].setMap(globalmap);
+		  
+		  restaurant_count += 1;
+		  total_patrons += parseFloat(gsheetdata[i].patrons);
+		  total_revenue += parseFloat(gsheetdata[i].revenue);
+		  
+		  if ( gsheetdata[i].rating ) total_rating += parseFloat(gsheetdata[i].rating);
+		  var average_rating = parseFloat(total_rating/restaurant_count).toFixed(2);
+		  
+		  
+		$('#dialog').dialog("close");
+		$('#dialog').attr('title','Statistics');
+		$('#dialog' ).dialog({title:"Statistics"});
+		$('#dialog').html('');
+		$('#dialog').html('Total Patrons:'+total_patrons+'</br>Total Income:'+total_revenue+'</br>Average Rating:'+average_rating);
+		$('#dialog').dialog("open");
+		  
+        } else {
+          global_allMarkers[i].setMap(null);
+        }
+      }
+	  
+	  if (global_allMarkers.length>0){
+			globalmap.setZoom(15);      // This will trigger a zoom_changed on the map
+			globalmap.setCenter(location);
+		}
+      //globalmap.fitBounds(bounds);
+	  
+	  
+  /*//geocode usinng address to search
+  geocoder.geocode( { 'address': address}, function(results, status) {
+    if (status == google.maps.GeocoderStatus.OK) {
+      map.setCenter(results[0].geometry.location);
+      var marker = new google.maps.Marker({
+        map: globalmap,
+        position: results[0].geometry.location
+      });
+      if (circle) circle.setMap(null);
+      circle = new google.maps.Circle({center:marker.getPosition(),
+                                     radius: radius,
+                                     fillOpacity: 0.35,
+                                     fillColor: "#FF0000",
+                                     map: map});
+      var bounds = new google.maps.LatLngBounds();
+      for (var i=0; i<gmarkers.length;i++) {
+        if (google.maps.geometry.spherical.computeDistanceBetween(gmarkers[i].getPosition(),marker.getPosition()) < radius) {
+          bounds.extend(gmarkers[i].getPosition())
+          gmarkers[i].setMap(map);
+        } else {
+          gmarkers[i].setMap(null);
+        }
+      }
+      map.fitBounds(bounds);
+
+    } else {
+      alert('Geocode was not successful for the following reason: ' + status);
+    }
+  });
+  */
+}
+
  function displayCurrentPosition(data) {
  /*
     //var current = new google.maps.LatLng(data.coords.latitude, data.coords.longitude);
@@ -411,8 +516,6 @@ $.getJSON(urlSpreadsheet, function(data) {
 
   // set global html variable
   var html = '';
-
-  var gsheetdata = new Array();
   
   var willDisplayCoords = false;
   
